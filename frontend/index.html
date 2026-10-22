@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YOLO Explainer - Trực quan hóa kiến trúc và feature map</title>
+  <meta name="description" content="Trực quan hóa cấu trúc mạng và feature map qua các thế hệ YOLOv8, YOLO11 và YOLO26.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="css/style.css?v=46">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-container">
+      
+      <div class="brand">
+        <div class="brand-logo">Y</div>
+        <div>
+          <h1 class="brand-title">
+            YOLO Explainer
+            <span class="brand-tag">Architecture</span>
+          </h1>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        
+        <!-- Model Switcher -->
+        <div class="segmented-control" id="model-switcher" role="tablist" aria-label="Chọn phiên bản mô hình">
+          <button class="segment-btn" data-model="yolov8n" role="tab" id="btn-yolov8n">YOLOv8n</button>
+          <button class="segment-btn active" data-model="yolo11n" role="tab" id="btn-yolo11n">YOLO11n</button>
+          <button class="segment-btn" data-model="yolo26n" role="tab" id="btn-yolo26n">YOLO26n</button>
+        </div>
+
+        <!-- Sample Selector & Upload -->
+        <div class="input-actions">
+          <select class="select-clean" id="sample-select" aria-label="Chọn ảnh đầu vào">
+            <option value="bus">Ảnh mẫu: Xe bus</option>
+            <option value="zidane">Ảnh mẫu: Sân vận động</option>
+          </select>
+
+          <input type="file" id="file-input" accept="image/*" style="display: none;">
+
+          <button class="btn-clean" id="scaling-btn" title="Cơ chế mở rộng variants">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            Variants n - x
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Banner -->
+  <section class="evolution-banner" aria-label="Thông tin mô hình">
+    <div class="evolution-content">
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <strong id="banner-model-title" style="color: var(--text-primary); font-size: 0.92rem;">YOLO11 Nano</strong>
+        <div class="evolution-features" id="banner-features"></div>
+      </div>
+      <div id="banner-perf" class="perf-stat">Sẵn sàng</div>
+    </div>
+  </section>
+
+  <!-- Main Layout -->
+  <main class="main-layout">
+    
+    <!-- Left Column: Interactive Architecture Pipeline -->
+    <section class="dag-card" aria-label="Sơ đồ kiến trúc mô hình">
+      <div class="card-header">
+        <h2 class="card-title">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Sơ Đồ Dòng Chảy Kiến Trúc (Pipeline Flowchart)
+        </h2>
+        
+        <div class="card-actions-group" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <div class="legend">
+            <div class="legend-item"><span class="legend-dot backbone"></span> 1. Backbone</div>
+            <div class="legend-item"><span class="legend-dot neck"></span> 2. Neck (PAN-FPN)</div>
+            <div class="legend-item"><span class="legend-dot head"></span> 3. Detect Head</div>
+          </div>
+          <button class="btn-clean btn-inspector-toggle" id="open-studio-btn" title="Mở bảng chi tiết 4 tab">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Chi tiết khối (Inspector)
+          </button>
+        </div>
+      </div>
+
+      <div class="dag-container" id="dag-container"></div>
+    </section>
+
+    <!-- Backdrop for Inspector Studio Drawer -->
+    <div class="studio-backdrop" id="studio-backdrop"></div>
+
+    <!-- Inspector Studio (Slide-over Drawer / Flyout Panel) -->
+    <aside class="studio-card" id="studio-card" aria-label="Chi tiết khối và feature map">
+      
+      <div class="studio-header">
+        <div class="studio-title-row">
+          <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+            <h3 class="studio-layer-title" id="studio-layer-title">Chọn một khối để xem</h3>
+            <span class="node-badge" id="studio-badge" style="font-size:0.75rem;">Stage</span>
+          </div>
+          <button class="btn-close-studio" id="close-studio-btn" title="Đóng bảng chi tiết (Esc)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            Đóng
+          </button>
+        </div>
+        <div class="studio-desc" id="studio-desc">Chọn một khối trên sơ đồ để theo dõi công thức tính toán và sự thay đổi từ đầu vào đến đầu ra.</div>
+      </div>
+
+      <nav class="studio-tabs" role="tablist" id="studio-tabs-nav">
+        <button class="tab-btn active" data-tab="theory" role="tab" id="tab-btn-theory">Cấu Trúc & Công Thức Tính</button>
+        <button class="tab-btn" data-tab="slider" role="tab" id="tab-btn-slider">So sánh Feature Map</button>
+        <button class="tab-btn" data-tab="detections" role="tab" id="tab-btn-detections" style="display: none;">Kết Quả Bounding Box</button>
+      </nav>
+
+      <div class="studio-body">
+        
+        <!-- Tab 1: Architectural Theory (Sơ Đồ Cấu Tạo Khối & Công Thức) -->
+        <div class="tab-content active" id="tab-theory">
+          <div class="theory-content" id="theory-container"></div>
+        </div>
+
+        <!-- Tab 2: Feature Map Slider (So sánh Feature Map) -->
+        <div class="tab-content" id="tab-slider">
+          <div class="slider-container">
+            <div class="slider-labels">
+              <span>Feature Map (Bản đồ nhiệt)</span>
+              <span>Ảnh gốc</span>
+            </div>
+
+            <div class="slider-wrapper" id="slider-box">
+              <img id="slider-under-img" class="slider-img under" src="" alt="Ảnh gốc">
+              <div class="slider-img-wrap" id="slider-img-wrap">
+                <img id="slider-over-img" class="slider-img" src="" alt="Bản đồ nhiệt">
+              </div>
+              <div class="slider-handle" id="slider-handle">
+                <div class="handle-button"></div>
+              </div>
+              <input type="range" min="0" max="100" value="50" class="slider-range-input" id="slider-range" aria-label="Thanh trượt so sánh ảnh và feature map">
+            </div>
+
+            <div class="slider-hint">
+              Kéo thanh trượt để so sánh vị trí phản hồi trên feature map với ảnh đầu vào.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Detections (Kết Quả Bounding Box - mở từ Block Kết Quả) -->
+        <div class="tab-content" id="tab-detections">
+          <!-- Control Toggle Bar: Sau NMS vs Trước NMS -->
+          <div class="det-control-header">
+            <div class="det-segmented-toggle" id="det-segmented-toggle">
+              <button class="det-toggle-btn active" id="btn-mode-post-nms" data-mode="post" type="button">
+                <span class="toggle-dot dot-post"></span>
+                <span>Sau NMS (Giữ lại)</span>
+                <span class="toggle-count" id="count-post-nms">0</span>
+              </button>
+              <button class="det-toggle-btn" id="btn-mode-pre-nms" data-mode="pre" type="button">
+                <span class="toggle-dot dot-pre"></span>
+                <span>Trước NMS (Ứng viên)</span>
+                <span class="toggle-count" id="count-pre-nms">0</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="detections-layout">
+            <div class="detections-preview">
+              <img id="detections-img" class="detections-img" src="" alt="Ảnh phát hiện">
+              <div class="det-img-caption" id="det-img-caption">Đang xem: Bounding box phát hiện sau NMS</div>
+              
+              <!-- Multi-Scale Attribution Legend (Bố trí ngay dưới ảnh) -->
+              <div class="det-scale-legend" id="det-scale-legend">
+                <span class="legend-chip legend-p3"><span class="legend-bullet p3"></span> P3 Stride 8 (Vật nhỏ)</span>
+                <span class="legend-chip legend-p4"><span class="legend-bullet p4"></span> P4 Stride 16 (Vật vừa)</span>
+                <span class="legend-chip legend-p5"><span class="legend-bullet p5"></span> P5 Stride 32 (Vật lớn)</span>
+              </div>
+            </div>
+            <div class="detections-sidebar">
+              <div style="font-weight: 700; font-size: 0.88rem; margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center;" id="det-count-header">
+                <span id="det-count">Kết quả phát hiện</span>
+                <span class="det-filter-hint" id="det-filter-hint"></span>
+              </div>
+              <div class="detections-list" id="detections-list"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- Modal: Compound Scaling -->
+  <div class="modal-backdrop" id="scaling-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">
+          Cơ Chế Compound Scaling Nano đến XLarge
+        </h2>
+        <button class="modal-close" id="modal-close" aria-label="Đóng cửa sổ">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
+          Các biến thể <strong id="modal-model-name">YOLO</strong> n, s, m, l, x sử dụng chung sơ đồ kiến trúc khối DAG. Sự khác biệt đến từ hệ số độ sâu Depth Multiplier d và độ rộng Width Multiplier w.
+        </p>
+
+        <table class="scaling-table">
+          <thead>
+            <tr>
+              <th>Variant</th>
+              <th>Depth d</th>
+              <th>Width w</th>
+              <th>Tham số</th>
+              <th>FLOPs</th>
+              <th>Môi trường sử dụng</th>
+            </tr>
+          </thead>
+          <tbody id="scaling-table-body"></tbody>
+        </table>
+
+        <div style="background: var(--bg-subtle); padding: 12px; border-radius: var(--radius-md); font-size: 0.82rem; border-left: 3px solid var(--primary); color: var(--text-secondary);">
+          <strong>Lý do chọn bản Nano:</strong> Bản Nano giữ nguyên vẹn toàn bộ cấu trúc kết nối của mạng, số lượng kênh phù hợp để trực quan hóa và thời gian suy luận ngắn.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loading-overlay" aria-hidden="true">
+    <div class="spinner"></div>
+  </div>
+
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="js/dag_renderer.js?v=49"></script>
+  <script src="js/inspector.js?v=49"></script>
+  <script src="js/app.js?v=49"></script>
+</body>
+</html>
